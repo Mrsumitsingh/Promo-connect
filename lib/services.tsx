@@ -47,7 +47,8 @@ export const uploadProfileImage = async (formData: FormData) => {
 
   return api.post("/api/v1/profile/upload-document", formData, {
     headers: {
-      Authorization: `Bearer ${token}`,
+      Authorization: `Bearer ${token}`
+      ,
       Accept: "application/json",
       "Content-Type": "multipart/form-data",
     },

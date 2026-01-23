@@ -23,6 +23,7 @@ export default function PromoterLayout() {
 
               const iconMap: Record<string, any> = {
                 home: "grid-outline",
+                Explore: "search-outline",
                 profile: "person-outline",
                 settings: "settings-outline",
               };
@@ -46,6 +47,8 @@ export default function PromoterLayout() {
       )}
     >
       <Tabs.Screen name="home" />
+      <Tabs.Screen name="Explore" />
+
       <Tabs.Screen name="profile" />
       <Tabs.Screen name="settings" />
     </Tabs>

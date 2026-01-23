@@ -14,12 +14,17 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
+
 import { SafeAreaView } from "react-native-safe-area-context";
 import { BASE_URL } from "../../lib/api";
 import { useAuth } from "../../lib/auth";
-import { getProfileInfo, uploadProfileImage } from "../../lib/services";
+import {
+  getProfileInfo,
+  updateProfile,
+  uploadProfileImage,
+} from "../../lib/services";
 
 const { width } = Dimensions.get("window");
 const DUMMY_AVATAR = "https://ui-avatars.com/api/?name=User";
@@ -37,6 +42,7 @@ export default function ClientProfile() {
   const [instagram, setInstagram] = useState("");
   const [youtube, setYoutube] = useState("");
   const [facebook, setFacebook] = useState("");
+  const [bio, setBio] = useState("");
 
   const [city, setCity] = useState("");
   const [stateName, setStateName] = useState("");
@@ -46,9 +52,10 @@ export default function ClientProfile() {
   const [previewVisible, setPreviewVisible] = useState(false);
   const [editVisible, setEditVisible] = useState(false);
 
-  const [activeTab, setActiveTab] = useState<"Instagram" | "info" | "Reviews">(
-    "Instagram",
-  );
+  const [activeTab, setActiveTab] = useState<
+    "Instagram" | "info" | "Reviews"
+  >("Instagram");
+
   const [menuVisible, setMenuVisible] = useState(false);
   const slideAnim = useState(new Animated.Value(300))[0];
 
@@ -57,21 +64,25 @@ export default function ClientProfile() {
     loadProfile();
   }, []);
 
-  const loadProfile = async () => {
+   const loadProfile = async () => {
     try {
       const res = await getProfileInfo();
+      console.log("Api Response", res);
       const profile = res?.data?.data;
+      console.log("Profile Data", profile);
       if (!profile) return;
 
       setFullName(profile.basic_info?.full_name || "");
       setMobile(profile.basic_info?.mobile || "");
       setCity(profile.basic_info?.city || "");
       setStateName(profile.basic_info?.state || "");
+      setAddress(profile.basic_info?.address || "");
+
       setCategory(profile.professional_info?.category || "");
       setExperience(profile.professional_info?.experience || "");
       setAudience(profile.professional_info?.audience || "");
       setLanguages(profile.professional_info?.languages || "");
-      setAddress(profile?.basic_info?.address || "");
+      setBio(profile.professional_info?.bio || "");
 
       setInstagram(profile.socials?.instagram || "");
       setYoutube(profile.socials?.youtube || "");
@@ -84,6 +95,38 @@ export default function ClientProfile() {
       );
     } catch (e) {
       console.log("Profile load failed", e);
+    }
+  };
+    useEffect(() => {
+    loadProfile();
+  }, []);
+
+  /* ---------- UPDATE PROFILE ---------- */
+  const handleSaveProfile = async () => {
+    try {
+      const payload = {
+        full_name: fullName,
+        mobile: mobile,
+        city: city,
+        state: stateName,
+        address: address,
+
+        category: category,
+        experience: experience,
+        audience: audience,
+        languages: languages,
+        bio: bio,
+
+        instagram: instagram,
+        youtube: youtube,
+        facebook: facebook,
+      };
+
+      await updateProfile(payload);
+      await loadProfile();
+      setEditVisible(false);
+    } catch (e) {
+      console.log("Update failed", e);
     }
   };
 
@@ -114,7 +157,7 @@ export default function ClientProfile() {
     }
   };
 
-  // open/close menue
+  /* ---------- MENU ---------- */
   const openMenu = () => {
     setMenuVisible(true);
     Animated.timing(slideAnim, {
@@ -132,6 +175,7 @@ export default function ClientProfile() {
     }).start(() => setMenuVisible(false));
   };
 
+  /* ---------- FORM COMPONENTS ---------- */
   const FormInput = ({ label, value, onChange, icon, placeholder }: any) => (
     <View style={styles.inputGroup}>
       <Text style={styles.inputLabel}>{label}</Text>
@@ -157,11 +201,12 @@ export default function ClientProfile() {
     </View>
   );
 
-  const FormTextarea = ({ label, value, placeholder }: any) => (
+  const FormTextarea = ({ label, value, placeholder, onChange }: any) => (
     <View style={styles.inputGroup}>
       <Text style={styles.inputLabel}>{label}</Text>
       <TextInput
         value={value}
+        onChangeText={onChange}
         placeholder={placeholder}
         multiline
         style={[styles.input, { height: 100, textAlignVertical: "top" }]}
@@ -297,9 +342,10 @@ export default function ClientProfile() {
               <FormInput
                 label="City"
                 value={`${city}, ${stateName}`}
+                onChange={`${setCity}, ${setStateName} `}
                 icon="search"
               />
-              <FormInput label="Mobile" value={`${mobile}`} icon="call" />
+              <FormInput label="Mobile" value={`${mobile}`} onChange={`${setMobile}`} icon="call" />
 
               <FormInput
                 label="Date of Birth"
@@ -316,19 +362,23 @@ export default function ClientProfile() {
               <FormInput
                 label="Address"
                 value={`${address}`}
+                onChange={`${setAddress}`}
                 placeholder="Address"
                 icon="home-outline"
               />
               <FormInput
                 label="Language"
                 value={`${languages}`}
+                onChange={setLanguages}
                 placeholder="Language"
                 icon="language-outline"
               />
 
               <FormTextarea label="Bio" value="" placeholder="Enter your bio" />
 
-              <TouchableOpacity style={styles.saveBtn}>
+              <TouchableOpacity style={styles.saveBtn} onPress={()=>{setEditVisible(false
+                
+              )}}>
                 <Text style={{ color: "#fff", fontWeight: "600" }}>Update</Text>
               </TouchableOpacity>
             </View>

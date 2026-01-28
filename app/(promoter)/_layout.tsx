@@ -22,39 +22,50 @@ export default function PromoterLayout() {
   return (
     <Tabs
       screenOptions={{ headerShown: false }}
-      tabBar={(props) => (
-        <>
-          {/* Spacer so content isn't hidden */}
-          <View style={{ height: 80 + insets.bottom }} />
+      tabBar={(props) => {
+        const currentRoute =
+          props.state.routes[props.state.index].name;
 
-          {/* Floating Tab Bar */}
-          <View style={[styles.wrapper, { bottom: insets.bottom + 12 }]}>
-            <View style={styles.tabBar}>
-              {TABS.map((tab) => {
-                const isFocused =
-                  props.state.routes[props.state.index].name === tab.name;
+        // 🚫 Hide tab bar if NOT on home
+        if (currentRoute !== "home") {
+          return null;
+        }
 
-                return (
-                  <TouchableOpacity
-                    key={tab.name}
-                    onPress={() => props.navigation.navigate(tab.name)}
-                    style={[styles.tabItem, isFocused && styles.activeTab]}
-                    activeOpacity={0.8}
-                  >
-                    <Ionicons
-                      name={tab.icon as any}
-                      size={22}
-                      color={isFocused ? "#fff" : "#aaa"}
-                    />
-                  </TouchableOpacity>
-                );
-              })}
+        return (
+          <>
+            {/* Spacer so content isn't hidden */}
+            <View style={{ height: 80 + insets.bottom }} />
+
+            {/* Floating Tab Bar */}
+            <View style={[styles.wrapper, { bottom: insets.bottom + 12 }]}>
+              <View style={styles.tabBar}>
+                {TABS.map((tab) => {
+                  const isFocused = currentRoute === tab.name;
+
+                  return (
+                    <TouchableOpacity
+                      key={tab.name}
+                      onPress={() => props.navigation.navigate(tab.name)}
+                      style={[
+                        styles.tabItem,
+                        isFocused && styles.activeTab,
+                      ]}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons
+                        name={tab.icon as any}
+                        size={22}
+                        color={isFocused ? "#fff" : "#aaa"}
+                      />
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
             </View>
-          </View>
-        </>
-      )}
+          </>
+        );
+      }}
     >
-      {/* ONLY declared tabs will appear */}
       <Tabs.Screen name="home" />
       <Tabs.Screen name="Explore" />
       <Tabs.Screen name="profile" />

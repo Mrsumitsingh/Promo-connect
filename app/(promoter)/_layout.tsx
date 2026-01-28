@@ -26,7 +26,7 @@ export default function PromoterLayout() {
         const currentRoute =
           props.state.routes[props.state.index].name;
 
-        // 🚫 Hide tab bar if NOT on home
+        //  Hide tab bar if NOT on home
         if (currentRoute !== "home") {
           return null;
         }

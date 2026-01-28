@@ -41,6 +41,11 @@ export const updateProfile = async (data: any) => {
     },
   });
 };
+export const getAllProfiles = async () => {
+  const config = await authHeader();
+  return api.get("/api/v1/profile", config);
+};
+
 
 export const uploadProfileImage = async (formData: FormData) => {
   const token = await AsyncStorage.getItem("token");

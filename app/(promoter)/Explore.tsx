@@ -1,20 +1,20 @@
-// 🔹 FULL FILE — ExploreScreen.tsx
-// UI & animation unchanged
-
 import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router"; // ADD THIS IMPORT
 import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
+  Modal,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  View
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { getAllCampaigns } from "../../lib/Explore";
+import { getAllBrands, getAllCampaigns } from "../../lib/Explore";
 
 /* =======================
    TYPES
@@ -27,6 +27,7 @@ interface Brand {
   name: string;
   category: string;
   description?: string;
+  basic_info: string;
 }
 
 interface Campaign {
@@ -50,13 +51,13 @@ interface Filters {
   location: string;
 }
 
-
-
 /* =======================
    SCREEN
 ======================= */
 
 const ExploreScreen = () => {
+  const router = useRouter(); // ADD THIS LINE
+  
   const [activeTab, setActiveTab] = useState<TabType>("campaign");
   const [search, setSearch] = useState("");
   const [showFilter, setShowFilter] = useState(false);
@@ -76,65 +77,175 @@ const ExploreScreen = () => {
   });
 
   /* =======================
-     FETCH API DATA
+     FETCH DATA
   ======================= */
 
   useEffect(() => {
     loadData();
   }, []);
-
+  
   const loadData = async () => {
-  try {
-    setLoading(true);
+    try {
+      setLoading(true);
 
-    const campaignRes = await getAllCampaigns();
+      // 🔹 Brands
+      const brandRes = await getAllBrands();
+      if (brandRes?.data?.data) {
+        setBrands(
+          brandRes.data.data.map((b: any) => ({
+            __type: "brand",
+            id: String(b.id),
+            name: b.brand_detail?.company_name ?? "Unknown Brand",
+            category: b.brand_detail?.industry ?? "General",
+            description: b.brand_detail?.website ?? "",
+            basic_info: b.brand_detail?.about ?? "",
+          }))
+        );
+      }
 
-    console.log("STATUS:", campaignRes.status);
-    console.log("FULL RESPONSE:", campaignRes.data);
-
-    if (!campaignRes.data?.data) {
-      console.log("❌ No data array found");
-      return;
+      // 🔹 FIXED: Campaigns mapping
+      const campaignRes = await getAllCampaigns();
+      if (campaignRes?.data?.data) {
+        setCampaigns(
+          campaignRes.data.data.map((c: any) => ({
+            __type: "campaign",
+            id: String(c.id),
+            title: c.title ?? "Untitled Campaign", 
+            type: c.budget_details ? "Paid" : "Barter", 
+            budget: c.budget_details ?? "", 
+            category: c.category,
+            status: c.status,
+          }))
+        );
+      }
+    } catch (err) {
+      console.log("❌ Explore API error:", err);
+    } finally {
+      setLoading(false);
     }
-
-    const mappedCampaigns: ExploreItem[] = campaignRes.data.data.map(
-      (c: any) => ({
-        __type: "campaign",
-        id: String(c.id),
-        title: c.title ?? "Untitled",
-        type: c.budget_details ? "Paid" : "Barter",
-        budget: c.budget_details ?? undefined,
-      })
-    );
-
-    console.log("MAPPED CAMPAIGNS:", mappedCampaigns);
-
-    setCampaigns(mappedCampaigns);
-  } catch (err: any) {
-    console.log("❌ Explore API error:", err?.response?.data || err);
-  } finally {
-    setLoading(false);
-  }
-};
-
-
+  };
+ 
   /* =======================
-     ACTIVE DATA + SEARCH
+     SEARCH + FILTER LOGIC
   ======================= */
 
   const data = useMemo(() => {
-    const list = activeTab === "brand" ? brands : campaigns;
+    let list = activeTab === "brand" ? brands : campaigns;
 
-    if (!search.trim()) return list;
+    // 🔍 Search
+    if (search.trim()) {
+      list = list.filter((item) =>
+        item.__type === "brand"
+          ? item.name.toLowerCase().includes(search.toLowerCase())
+          : item.title.toLowerCase().includes(search.toLowerCase())
+      );
+    }
 
-    return list.filter((item) =>
-      item.__type === "brand"
-        ? item.name.toLowerCase().includes(search.toLowerCase())
-        : item.title.toLowerCase().includes(search.toLowerCase())
+    // 🎯 Brand category
+    if (filters.category.length && activeTab === "brand") {
+      list = list.filter((i: any) =>
+        filters.category.includes(i.category)
+      );
+    }
+
+    // 🎯 Campaign type
+    if (filters.campaignType && activeTab === "campaign") {
+      list = list.filter((i: any) => i.type === filters.campaignType);
+    }
+
+    return list;
+  }, [activeTab, brands, campaigns, search, filters]);
+
+  const getActiveFilterCount = () => {
+    let count = 0;
+    if (filters.category.length) count += filters.category.length;
+    if (filters.campaignType) count += 1;
+    if (filters.location !== "All") count += 1;
+    return count;
+  };
+
+  /* =======================
+     COMPONENTS
+  ======================= */
+
+  const Tab = ({ title, active, onPress }: any) => (
+    <TouchableOpacity onPress={onPress} style={styles.tab}>
+      <Text style={[styles.tabText, active && styles.tabTextActive]}>{title}</Text>
+    </TouchableOpacity>
+  );
+
+  const BrandCard = ({ id, name, category, description, basic_info }: any) => {
+    const handlePress = () => {
+      // Navigate to brand profile with data
+      router.push({
+        pathname: "/BrandProfile",
+        params: {
+          id,
+          name,
+          category,
+          description,
+          basic_info,
+        }
+      });
+    };
+
+    return (
+      <TouchableOpacity 
+        style={styles.card}
+        onPress={handlePress}
+        activeOpacity={0.7}
+      >
+        <Text style={styles.cardTitle}>{name}</Text>
+        <Text style={styles.categoryText}>{category}</Text>
+        {!!description && <Text style={styles.cardDescription}>{description}</Text>}
+      </TouchableOpacity>
     );
-  }, [activeTab, brands, campaigns, search]);
+  };
 
-  const getActiveFilterCount = () => 0;
+  const CampaignCard = ({ title, type, budget, category, status }: any) => (
+    <View style={styles.card}>
+      <Text style={styles.cardTitle}>{title}</Text>
+      <Text style={styles.campaignTypeText}>{type}</Text>
+      {category && <Text style={styles.categoryText}>{category}</Text>}
+      {budget && <Text style={styles.budgetText}>Budget: {budget}</Text>}
+      {status && <Text style={[styles.statusText, 
+        status === 'open' ? styles.statusOpen : styles.statusClosed]}>
+        {status}
+      </Text>}
+    </View>
+  );
+
+  const FilterModal = ({ visible, filters, setFilters, onClose }: any) => (
+    <Modal visible={visible} transparent animationType="slide">
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalContainer}>
+          <Text style={styles.modalTitle}>Filters</Text>
+
+          <ScrollView>
+            {["Fashion", "Tech", "Fitness", "Lifestyle"].map((c) => (
+              <TouchableOpacity
+                key={c}
+                onPress={() =>
+                  setFilters((p: Filters) => ({
+                    ...p,
+                    category: p.category.includes(c)
+                      ? p.category.filter((x) => x !== c)
+                      : [...p.category, c],
+                  }))
+                }
+              >
+                <Text style={{ padding: 16 }}>{c}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+
+          <TouchableOpacity style={styles.applyButton} onPress={onClose}>
+            <Text style={styles.applyButtonText}>Apply Filters</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
 
   /* =======================
      RENDER
@@ -148,11 +259,19 @@ const ExploreScreen = () => {
           <Ionicons name="arrow-back" size={22} color="#333" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Explore</Text>
+
         <TouchableOpacity
           style={styles.filterButton}
           onPress={() => setShowFilter(true)}
         >
           <Ionicons name="filter" size={22} color="#333" />
+          {getActiveFilterCount() > 0 && (
+            <View style={styles.filterBadge}>
+              <Text style={styles.filterBadgeText}>
+                {getActiveFilterCount()}
+              </Text>
+            </View>
+          )}
         </TouchableOpacity>
       </View>
 
@@ -162,7 +281,6 @@ const ExploreScreen = () => {
           <Ionicons name="search" size={20} color="#666" />
           <TextInput
             placeholder="Search brands, campaigns..."
-            placeholderTextColor="#999"
             value={search}
             onChangeText={setSearch}
             style={styles.searchInput}
@@ -176,7 +294,7 @@ const ExploreScreen = () => {
         <Tab title="Campaigns" active={activeTab === "campaign"} onPress={() => setActiveTab("campaign")} />
       </View>
 
-      {/* RESULTS INFO */}
+      {/* RESULTS */}
       <View style={styles.resultsInfo}>
         <Text style={styles.resultsText}>
           {data.length} {activeTab === "brand" ? "brands" : "campaigns"} found
@@ -190,16 +308,14 @@ const ExploreScreen = () => {
         <FlatList
           data={data}
           keyExtractor={(i) => i.id}
-          showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.listContainer}
           renderItem={({ item }) =>
             item.__type === "brand" ? (
-              <BrandCard title={item.name} category={item.category} description={item.description} />
+              <BrandCard {...item} />
             ) : (
-              <CampaignCard title={item.title} type={item.type} budget={item.budget} />
+              <CampaignCard {...item} />
             )
           }
-          ItemSeparatorComponent={() => <View style={styles.separator} />}
         />
       )}
 
@@ -213,52 +329,9 @@ const ExploreScreen = () => {
   );
 };
 
-// Tab component
-const Tab = ({ title, active, onPress }: { title: string; active: boolean; onPress: () => void }) => (
-  <TouchableOpacity style={[styles.tab, active && styles.tabActive]} onPress={onPress}>
-    <Text style={[styles.tabText, active && styles.tabTextActive]}>{title}</Text>
-    {active && <View style={styles.tabIndicator} />}
-  </TouchableOpacity>
-);
-
-// BrandCard component
-const BrandCard = ({ title, category, description }: { title: string; category: string; description?: string }) => (
-  <View style={styles.card}>
-    <View style={styles.cardHeader}>
-      <View style={styles.brandIcon}>
-        <Text style={styles.brandIconText}>{title.charAt(0)}</Text>
-      </View>
-      <View style={styles.cardInfo}>
-        <Text style={styles.cardTitle}>{title}</Text>
-        <View style={styles.categoryBadge}>
-          <Text style={styles.categoryText}>{category}</Text>
-        </View>
-      </View>
-    </View>
-    {description ? <Text style={styles.cardDescription}>{description}</Text> : null}
-  </View>
-);
-
-// CampaignCard component
-const CampaignCard = ({ title, type, budget }: { title: string; type: string; budget?: string }) => (
-  <View style={styles.card}>
-    <Text style={styles.cardTitle}>{title}</Text>
-    <View style={[styles.campaignTypeBadge, type === 'Paid' ? styles.paidBadge : styles.barterBadge]}>
-      <Text style={styles.campaignTypeText}>{type}</Text>
-    </View>
-    {budget && (
-      <View style={styles.budgetContainer}>
-        <Ionicons name="cash-outline" size={16} color="#7b6fd6" />
-        <Text style={styles.budgetText}>{budget}</Text>
-      </View>
-    )}
-  </View>
-);
-
-// FilterModal placeholder
-const FilterModal = ({ visible, filters, setFilters, onClose }: any) => null;
-
 export default ExploreScreen;
+
+
 
 /* =======================
    STYLES
@@ -288,6 +361,23 @@ const styles = StyleSheet.create({
   filterButton: {
     padding: 8,
     position: "relative",
+  },
+  statusText: {
+    fontSize: 12,
+    fontWeight: "500",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    alignSelf: "flex-start",
+    marginTop: 8,
+  },
+  statusOpen: {
+    backgroundColor: "#E8F5E9",
+    color: "#2E7D32",
+  },
+  statusClosed: {
+    backgroundColor: "#FFEBEE",
+    color: "#C62828",
   },
   filterBadge: {
     position: "absolute",
@@ -387,6 +477,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     borderRadius: 16,
     padding: 20,
+    marginBottom: 12,
     shadowColor: "#000",
     shadowOffset: {
       width: 0,
@@ -547,10 +638,6 @@ const styles = StyleSheet.create({
   categoryItemActive: {
     backgroundColor: "#fff",
   },
-  //   categoryText: {
-  //     fontSize: 15,
-  //     color: "#666",
-  //   },
   categoryTextActive: {
     color: "#7b6fd6",
     fontWeight: "600",

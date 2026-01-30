@@ -10,30 +10,32 @@ export default function PromoterDashboard() {
       {/* Top Right Chat Button */}
       <TouchableOpacity
         style={styles.chatButton}
-        onPress={() => router.push("/Chat/chat")}
+        onPress={() => router.push("/(promoter)/(Chat)")}
       >
-        <Ionicons name="chatbubble-ellipses-outline" size={26} color="#6A5ACD" />
+        <Ionicons
+          name="chatbubble-ellipses-outline"
+          size={26}
+          color="#6A5ACD"
+        />
       </TouchableOpacity>
 
-      {/* Content */}
       <Text style={styles.title}>Promoter Dashboard 🚀</Text>
       <Text>Leads, analytics & stats go here</Text>
     </View>
   );
 }
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
   },
-
   chatButton: {
     position: "absolute",
-    top: 50, // adjust if using SafeArea
+    top: 50,
     right: 20,
   },
-
   title: {
     fontSize: 22,
     fontWeight: "bold",

@@ -1,4 +1,4 @@
-import axios from "axios";
+//index.tsx
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { FlatList, StyleSheet, Text, TouchableOpacity, View } from "react-native";
@@ -22,10 +22,29 @@ export default function ChatList() {
     try {
       const res = await api.get("/api/v1/users/explore");
       if (res.data.status) setUsers(res.data.data);
-    } catch (error: unknown) {
-      if (axios.isAxiosError(error)) {
-        console.log(error.response?.data || error.message);
-      }
+    } catch (e) {
+      console.log(e);
+    }
+  };
+
+  const openChat = async (user: User) => {
+    try {
+      // 🔹 Create or get conversation
+      const res = await api.post("/api/v1/chat/conversation", {
+        user_id: user.id, // backend handles role internally
+      });
+
+      const conversationId = res.data.conversation_id;
+
+      router.push({
+        pathname: "/(client)/(Chat)/chat",
+        params: {
+          conversationId: conversationId.toString(),
+          name: user.name,
+        },
+      });
+    } catch (e) {
+      console.log(e);
     }
   };
 
@@ -35,22 +54,10 @@ export default function ChatList() {
         data={users}
         keyExtractor={(item) => item.id.toString()}
         renderItem={({ item }) => (
-          <TouchableOpacity
-            style={styles.row}
-            onPress={() =>
-              router.push({
-                pathname: "/(client)/(Chat)/chat",
-                params: {
-                  userId: item.id.toString(),
-                  name: item.name,
-                },
-              })
-            }
-          >
+          <TouchableOpacity style={styles.row} onPress={() => openChat(item)}>
             <View style={styles.avatar}>
               <Text style={styles.avatarText}>{item.name[0]}</Text>
             </View>
-
             <View>
               <Text style={styles.name}>{item.name}</Text>
               <Text style={styles.email}>{item.email}</Text>
@@ -60,6 +67,7 @@ export default function ChatList() {
       />
     </View>
   );
+
 }
 
 const styles = StyleSheet.create({

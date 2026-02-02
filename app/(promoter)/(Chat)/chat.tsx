@@ -1,6 +1,6 @@
-import axios from "axios";
+//chat.tsx
 import { useLocalSearchParams } from "expo-router";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   FlatList,
   StyleSheet,
@@ -10,29 +10,61 @@ import {
   View,
 } from "react-native";
 import api from "../../../lib/api";
+import echoClient from "../../../lib/echo";
 
 type Message = {
   id: number;
   message: string;
-  sender: "me" | "other";
+  sender_id: number;
 };
 
+
 export default function ChatScreen() {
-  const { userId = "", name = "Chat" } = useLocalSearchParams<{
-    userId?: string;
-    name?: string;
+  const { conversationId, name } = useLocalSearchParams<{
+    conversationId: string;
+    name: string;
   }>();
+
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [text, setText] = useState("");
+  const echoRef = useRef<any>(null);
+
+  // 🔹 Load old messages
+  useEffect(() => {
+    loadMessages();
+    initEcho();
+
+    return () => {
+      if (echoRef.current) {
+        echoRef.current.leave(`chat.${conversationId}`);
+      }
+    };
+  }, []);
+
+  const loadMessages = async () => {
+    const res = await api.get(`/api/v1/chat/${conversationId}`);
+    setMessages(res.data);
+  };
+
+  // 🔹 Listen realtime
+  const initEcho = async () => {
+    const echo = await echoClient();
+    echoRef.current = echo;
+
+    echo.private(`chat.${conversationId}`)
+      .listen("MessageSent", (e: any) => {
+        setMessages((prev) => [...prev, e.message]);
+      });
+  };
 
   const sendMessage = async () => {
     if (!text.trim()) return;
 
-    const temp: Message = {
+    const temp = {
       id: Date.now(),
       message: text,
-      sender: "me",
+      sender_id: 0,
     };
 
     setMessages((prev) => [...prev, temp]);
@@ -40,29 +72,26 @@ export default function ChatScreen() {
 
     try {
       await api.post("/api/v1/chat/send", {
-        receiver_id: Number(userId),
-        message: temp.message,
+        conversation_id: conversationId,
+        message: text,
       });
-    } catch (error: unknown) {
-      if (axios.isAxiosError(error)) {
-        console.log(error.response?.data || error.message);
-      }
+    } catch (e) {
+      console.log(e);
     }
   };
 
+
+
   return (
     <View style={styles.container}>
+      {/* <Text style={styles.header}>{name}</Text> */}
+
       <FlatList
         data={messages}
-        keyExtractor={(item) => item.id.toString()}
+        keyExtractor={(i) => i.id.toString()}
         renderItem={({ item }) => (
-          <View
-            style={[
-              styles.msg,
-              item.sender === "me" ? styles.me : styles.other,
-            ]}
-          >
-            <Text style={{ color: "#fff" }}>{item.message}</Text>
+          <View style={styles.msg}>
+            <Text>{item.message}</Text>
           </View>
         )}
       />
@@ -71,10 +100,10 @@ export default function ChatScreen() {
         <TextInput
           value={text}
           onChangeText={setText}
-          placeholder="Type message..."
+          placeholder="Type..."
           style={styles.input}
         />
-        <TouchableOpacity style={styles.sendBtn} onPress={sendMessage}>
+        <TouchableOpacity onPress={sendMessage} style={styles.sendBtn}>
           <Text style={{ color: "#fff" }}>Send</Text>
         </TouchableOpacity>
       </View>

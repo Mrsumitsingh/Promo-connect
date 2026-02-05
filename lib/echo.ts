@@ -1,43 +1,89 @@
-// lib/echo.ts
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Echo from "laravel-echo";
 import Pusher from "pusher-js";
+import { Platform } from "react-native";
 import { BASE_URL } from "./api";
 
-const API_URL = "http://127.0.0.1:8000"; // 🔥 CHANGE if needed
+// Enable Pusher logging in development
+if (__DEV__) {
+  Pusher.logToConsole = true;
+}
 
-const echo = async () => {
-  const token = await AsyncStorage.getItem("token");
-
-  return new Echo({
-    broadcaster: "pusher",
-
-    key: "9357b31316cf701e9e6c",
-    cluster: "ap2",
-
-    wsHost: "127.0.0.1", // SAME machine as Laravel WebSocket
-    wsPort: 6001,
-    wssPort: 6001,
-
-    forceTLS: false,
-    encrypted: false,
-    disableStats: true,
-    enabledTransports: ["ws", "wss"],
-
-    client: new Pusher("9357b31316cf701e9e6c", {
-      cluster: "ap2",
-      forceTLS: false,
-    }),
-
-    // ✅ THIS IS THE REAL FIX
-    authEndpoint: `${BASE_URL}/broadcasting/auth`,
-    auth: {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: "application/json",
-      },
-    },
-  });
+const getWebSocketHost = () => {
+  // Extract host from BASE_URL
+  const url = new URL(BASE_URL);
+  return url.hostname; // This returns '192.168.1.6'
 };
 
-export default echo;
+const createEchoClient = async () => {
+  try {
+    const token = await AsyncStorage.getItem("token");
+
+    if (!token) {
+      console.warn("⚠️ No token found for Echo authentication");
+    }
+
+    const wsHost = getWebSocketHost();
+
+    // ⚠️ CRITICAL: WebSocket uses port 6001, NOT 8000!
+    const WS_PORT = 6001; // Laravel WebSocket default port
+
+    console.log(`
+    🚀 Echo Configuration:
+    ----------------------
+    API URL (HTTP):  ${BASE_URL}
+    WebSocket URL:   ws://${wsHost}:${WS_PORT}
+    Platform:        ${Platform.OS}
+    Token Present:   ${!!token}
+    `);
+
+    // ✅ CORRECTED: Use port 6001 for WebSocket
+    const pusher = new Pusher("9357b31316cf701e9e6c", {
+      cluster: "ap2",
+      wsHost: wsHost,
+      wsPort: WS_PORT, // ⚠️ CHANGED: 6001 not 8000!
+      wssPort: 443, // SSL port (not used in dev)
+      forceTLS: false, // Must be false for ws://
+      enabledTransports: ["ws"], // Only use 'ws', not 'wss'
+      disableStats: true,
+      authEndpoint: `${BASE_URL}/broadcasting/auth`,
+      auth: {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        },
+      },
+    });
+
+    // Debug connection events
+    pusher.connection.bind("connecting", () => {
+      console.log(`🔄 Connecting to ws://${wsHost}:${WS_PORT}...`);
+    });
+
+    pusher.connection.bind("connected", () => {
+      console.log("✅ Successfully connected to WebSocket server!");
+    });
+
+    pusher.connection.bind("disconnected", () => {
+      console.log("❌ Disconnected from WebSocket server");
+    });
+
+    pusher.connection.bind("error", (error: any) => {
+      console.error("❌ WebSocket error:", error);
+    });
+
+    const echo = new Echo({
+      broadcaster: "pusher",
+      client: pusher,
+    });
+
+    console.log("✅ Echo client initialized");
+    return echo;
+  } catch (error) {
+    console.error("❌ Failed to create Echo client:", error);
+    throw error;
+  }
+};
+
+export default createEchoClient;
